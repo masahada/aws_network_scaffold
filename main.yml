@@ -1,0 +1,174 @@
+- name: Deployment AWS
+  hosts: 127.0.0.1
+  connection: local
+
+  vars:
+    region: ap-northeast-1
+
+    # vpc
+    vpc_name: my_vpc
+    vpc_cidr_block: 10.1.0.0/16
+
+    # igw
+    internet_gateway_name: igw
+
+    # Public subnet az-a
+    public_subnet_name_az_a: pub_subnet_az_a
+    public_subnet_cidr_az_a: 10.1.1.0/24
+  
+    # Public subnet az-c
+    public_subnet_name_az_c: pub_subnet_az_c
+    public_subnet_cidr_az_c: 10.1.11.0/24
+
+    # Private subnet az-a
+    private_subnet_name_az_a: pri_subnet_az_a
+    private_subnet_cidr_az_a: 10.1.2.0/24
+
+    # Private subnet az-c
+    private_subnet_name_az_c: pri_subnet_az_c
+    private_subnet_cidr_az_c: 10.1.12.0/24
+
+
+    # Public subnet Security Group    
+    public_subnet_sg_name: pub_subnet_sg
+
+    # Private subnet Security Group
+    private_subnet_sg_name: pri_subnet_sg
+
+    # Public subnet route table
+    pub_subnet_route_table_name: pub_subnet_route_table
+    
+    # Eip
+    eip_name: my_eip
+
+    # Nat Gateway
+    nat_gateway_name: natgw
+
+    # Private subnet route table
+    private_subnet_route_table_name: pri_subnet_route_table
+
+  tasks:
+  - name: Create VPC
+    amazon.aws.ec2_vpc_net:
+      name: "{{ vpc_name }}"
+      cidr_block: "{{ vpc_cidr_block }}"
+    register: registerd_vpc
+
+  - name: Create Internet Gateway and attach to vpc
+    amazon.aws.ec2_vpc_igw:
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      tags:
+        Name: "{{ internet_gateway_name }}"
+    register: registerd_igw
+
+  - name: Create public subnet on vpc az_a
+    amazon.aws.ec2_vpc_subnet:
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      cidr: "{{ public_subnet_cidr_az_a }}"
+      state: present
+      az: "{{ region }}a"
+      resource_tags:
+        Name: "{{ public_subnet_name_az_a }}"
+    register: registerd_public_subnet_az_a
+
+  - name: Create public subnet on vpc and az_c
+    amazon.aws.ec2_vpc_subnet:
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      cidr: "{{ public_subnet_cidr_az_c }}"
+      state: present
+      az: "{{ region }}c"
+      resource_tags:
+        Name: "{{ public_subnet_name_az_c }}"
+    register: registerd_public_subnet_az_c
+
+  - name: Create private subnet on vpc and az_a
+    amazon.aws.ec2_vpc_subnet:
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      cidr: "{{ private_subnet_cidr_az_a }}"
+      state: present
+      az: "{{ region }}a"
+      resource_tags:
+        Name: "{{ private_subnet_name_az_a }}"
+    register: registerd_private_subnet_az_a
+
+  - name: Create private subnet on vpc and az_c
+    amazon.aws.ec2_vpc_subnet:
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      cidr: "{{ private_subnet_cidr_az_c }}"
+      state: present
+      az: "{{ region }}c"
+      resource_tags:
+        Name: "{{ private_subnet_name_az_c }}"
+    register: registerd_private_subnet_az_c
+
+  - name: Create security group for public subnet Public subnet
+    amazon.aws.ec2_security_group:
+      name: "{{ public_subnet_sg_name }}"
+      description: Security group for public subnet Public subnet
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      rules:
+        - proto: tcp
+          from_port: 80
+          to_port: 80
+          cidr_ip: "0.0.0.0/0"
+        - proto: tcp
+          from_port: 443
+          to_port: 443
+          cidr_ip: "0.0.0.0/0"
+
+  - name: Create security group for private subnet Private subnet
+    amazon.aws.ec2_security_group:
+      name: "{{ private_subnet_sg_name }}"
+      description: Security group for private subnet Private subnet
+      vpc_id: "{{ registerd_vpc.vpc.id }}"
+      rules:
+        - proto: tcp
+          from_port: 80
+          to_port: 80
+          cidr_ip: "0.0.0.0/0"
+        - proto: tcp
+          from_port: 443
+          to_port: 443
+          cidr_ip: "0.0.0.0/0"
+    register: registerd_private_subnet_sg      
+
+  - name : Create route table for public subnet pub_subnet 
+    amazon.aws.ec2_vpc_route_table:
+      vpc_id : "{{ registerd_vpc.vpc.id }}"
+      tags :
+        Name : "{{ pub_subnet_route_table_name }}" 
+      routes :
+        - dest : "0.0.0.0/0"
+          gateway_id : "{{ registerd_igw.gateway_id }}"
+      subnets:
+        - "{{ registerd_public_subnet_az_a.subnet.id }}"
+        - "{{ registerd_public_subnet_az_c.subnet.id }}"
+
+  - name : Create elastic IP address 
+    amazon.aws.ec2_eip :
+      in_vpc : yes
+      tags :
+        Name : "{{ eip_name }}"     
+    register: registerd_eip
+
+  - name: Create new nat gateway, using an EIP address  and wait for available status.
+    amazon.aws.ec2_vpc_nat_gateway:
+      state: present
+      subnet_id: "{{ registerd_private_subnet_az_a.subnet.id }}" 
+      eip_address: "{{ registerd_eip.public_ip }}"
+      wait: true
+      tags :
+        Name : "{{ nat_gateway_name }}" 
+    register: registerd_natgw
+
+  - name : Create route table for private subnet pri_subnet 
+    amazon.aws.ec2_vpc_route_table :
+      vpc_id : "{{ registerd_vpc.vpc.id }}" 
+      tags :
+        Name : "{{ private_subnet_route_table_name }}" 
+      routes :
+        - dest : "0.0.0.0/0"
+          nat_gateway_id : "{{ registerd_natgw.nat_gateway_id }}"
+      subnets:
+        - "{{ registerd_private_subnet_az_a.subnet.id }}"
+        - "{{ registerd_private_subnet_az_c.subnet.id }}"
