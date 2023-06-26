@@ -1,0 +1,12 @@
+echo 'set paste' >> ~/.vimrc
+source  ~/.vimrc
+sudo amazon-linux-extras install -y python3.8
+echo 'alias python=python3.8' >> ~/.bashrc
+source ~/.bashrc
+sudo pip3.8 install pipenv
+pipenv --version
+pip3.8 install ansible
+pip3.8 install boto3
+ansible-galaxy collection install amazon.aws
+export AWS_DEFAULT_REGION=ap-northeast-1
+export AWS_DEFAULT_OUTPUT=json
