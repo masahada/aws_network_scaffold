@@ -5,6 +5,7 @@ Ansibleを使用して自動で作成する。
 
 イメージ
 image_aws_network.png
+https://github.com/masahada/aws_network_scaffold/blob/2968c1e96bbc9a03e414b93b2f5d2d0d80e351ef/image_aws_network.png
 
 ■Ansibleインストール
 AWS Cloudshellを起動し、リポジトリ上のinstall.txt の内容をシェルに貼り付けて実行。
