@@ -4,7 +4,7 @@
 Ansibleを使用して自動で作成する。
 
 イメージ
-
+image_aws_network.png
 
 ■Ansibleインストール
 AWS Cloudshellを起動し、リポジトリ上のinstall.txt の内容をシェルに貼り付けて実行。
